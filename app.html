@@ -448,13 +448,20 @@ const demo = (() => {
 
 // ---- chain reads ----------------------------------------------------------------------------
 // One provider per node; a read that fails moves on to the next node.
-const providers = DEMO ? [] : READ_RPCS.map((u) => new ethers.JsonRpcProvider(u, Number(CHAIN_ID), { staticNetwork: true, batchMaxCount: 1 }));
-let good = 0;  // index of the node that last answered
+// A rate-limited node fails fast (no built-in retry), and each read starts at the next node in turn,
+// so a page load's burst of reads is spread across all of them instead of queuing on one.
+const providers = DEMO ? [] : READ_RPCS.map((u) => {
+  const req = new ethers.FetchRequest(u);
+  req.setThrottleParams({ maxAttempts: 1 });
+  req.timeout = 15000;
+  return new ethers.JsonRpcProvider(req, Number(CHAIN_ID), { staticNetwork: true, batchMaxCount: 1 });
+});
+let turn = 0;
 async function rpc(fn) {
   let err;
+  const first = turn++ % providers.length;
   for (let i = 0; i < providers.length; i++) {
-    const p = providers[(good + i) % providers.length];
-    try { const r = await fn(p); good = (good + i) % providers.length; return r; } catch (e) { err = e; }
+    try { return await fn(providers[(first + i) % providers.length]); } catch (e) { err = e; }
   }
   throw err;
 }
@@ -468,9 +475,9 @@ async function launchNeed(epoch, end) {
   const t = BigInt(now()) - 1n;
   const start = epoch === 1n ? await rpc((p) => hook(p).openedAt()) : await tCall("epochEnd", epoch - 1n);
   if (t <= start + 60n) return null;
-  const avg = await rpc((p) => hook(p).twap(start, t));
+  let [avg, spot] = await Promise.all([rpc((p) => hook(p).twap(start, t)), rpc((p) => hook(p).twap(t - 60n, t)).catch(() => null)]);
   if (!avg) return null;
-  let spot = await rpc((p) => hook(p).twap(t - 60n, t)).catch(() => avg);
+  spot ??= avg;
   if (spot * 1000n < avg) spot = avg;  // a pool emptied of ETH reads ~0; don't project that forward
   const endT = BigInt(end);
   const avgEnd = endT > t ? (avg * (t - start) + spot * (endT - t)) / (endT - start) : avg;
@@ -546,29 +553,29 @@ async function load() {
     tokenAddr = DEMO_TOKEN;
     return;
   }
-  tokenAddr ??= await tCall("token");
-  hookAddr ??= await tCall("hook");
-  const head = await rpc((p) => p.getBlock("latest"));
+  const [token, hook, head, epoch] = await Promise.all([
+    tokenAddr ?? tCall("token"), hookAddr ?? tCall("hook"), rpc((p) => p.getBlock("latest")), tCall("currentEpoch")]);
+  tokenAddr = token; hookAddr = hook;
   if (head) clockSkew = Number(head.timestamp) - Math.floor(Date.now() / 1000);
-  const epoch = await tCall("currentEpoch");
-  const [end, pd, cost, price, count, treasury, treasuryImd, bb, chunk, burnedAll] = await Promise.all([
-    tCall("epochEnd", epoch), tCall("proposeDeadline", epoch), tCall("proposeCost"), tCall("price").catch(() => 0n), tCall("proposalCount", epoch),
-    rpc((p) => p.getBalance(TREASURY)), rpc((p) => new ethers.Contract(IMD, ERC20_ABI, p).balanceOf(TREASURY)),
-    tCall("totalBuybackBurned"), tCall("buybackChunk"), tCall("totalBurned")]);
-  const proposals = await Promise.all([...Array(Number(count)).keys()].map((i) => i + 1).map(async (i) => {  // ids start at 1
-    const p = await tCall("proposalOf", epoch, i);
-    const [brief, mine] = await Promise.all([briefFromChain(p).catch(() => null), account ? tCall("votesOf", epoch, i, account) : 0n]);
-    return { id: BigInt(i), proposer: p.proposer, title: p.title, briefHash: p.briefHash, burned: p.burned, flag: p.flag, brief, mine };
-  }));
   const weeks = [];
   // 14 weeks back: backer claims stay open 90 days, so every still-claimable week is listed
   for (let e = epoch - 1n; e >= 1n && weeks.length < 14; e--) weeks.push(e);
-  const past = await Promise.all(weeks.map(loadWeek));
-  let balance = null, allowance = 0n;
-  if (account) [balance, allowance] = await Promise.all([
-    rpc((p) => new ethers.Contract(tokenAddr, ERC20_ABI, p).balanceOf(account)),
-    rpc((p) => new ethers.Contract(tokenAddr, ERC20_ABI, p).allowance(account, TREASURY))]);
-  const need = await launchNeed(epoch, end).catch(() => null);
+  const [[end, pd, cost, price, count, treasury, treasuryImd, bb, chunk, burnedAll], past, [balance, allowance]] = await Promise.all([
+    Promise.all([
+      tCall("epochEnd", epoch), tCall("proposeDeadline", epoch), tCall("proposeCost"), tCall("price").catch(() => 0n), tCall("proposalCount", epoch),
+      rpc((p) => p.getBalance(TREASURY)), rpc((p) => new ethers.Contract(IMD, ERC20_ABI, p).balanceOf(TREASURY)),
+      tCall("totalBuybackBurned"), tCall("buybackChunk"), tCall("totalBurned")]),
+    Promise.all(weeks.map(loadWeek)),
+    account ? Promise.all([
+      rpc((p) => new ethers.Contract(tokenAddr, ERC20_ABI, p).balanceOf(account)),
+      rpc((p) => new ethers.Contract(tokenAddr, ERC20_ABI, p).allowance(account, TREASURY))]) : [null, 0n]]);
+  const [proposals, need] = await Promise.all([
+    Promise.all([...Array(Number(count)).keys()].map((i) => i + 1).map(async (i) => {  // ids start at 1
+      const p = await tCall("proposalOf", epoch, i);
+      const [brief, mine] = await Promise.all([briefFromChain(p).catch(() => null), account ? tCall("votesOf", epoch, i, account) : 0n]);
+      return { id: BigInt(i), proposer: p.proposer, title: p.title, briefHash: p.briefHash, burned: p.burned, flag: p.flag, brief, mine };
+    })),
+    launchNeed(epoch, end).catch(() => null)]);
   state = { epoch, end: Number(end), proposeDeadline: Number(pd), cost, price, need, treasury, treasuryImd, totalBurned: burnedAll, buybackBurned: bb, buybackReady: chunk.eth > 0n,
     chunk: { eth: chunk.eth, tip: chunk.tip }, proposals, past, balance, allowance };
 }
