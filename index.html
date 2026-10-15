@@ -98,6 +98,7 @@
     <div>
       <h1><span>Medici</span> weekly vote</h1>
       <p class="sub">Burn MEDICI to choose what the IMD swarm builds next, and back the winner.</p>
+      <p class="sub" style="margin-top:4px">Official: <a href="https://x.com/Medici_IMD" target="_blank" rel="noopener noreferrer">@Medici_IMD on X ↗</a><span id="tokenLinkWrap" hidden> · <a id="tokenLink" target="_blank" rel="noopener noreferrer">MEDICI token contract ↗</a></span></p>
     </div>
     <div class="row">
       <span id="acct" class="dim"></span>
@@ -122,6 +123,7 @@
   <section class="stats">
     <div class="stat"><div class="k">Week</div><div class="v" id="sEpoch">—</div><div class="s" id="sEpochSub"></div></div>
     <div class="stat"><div class="k">Voting ends in</div><div class="v" id="sLeft">—</div><div class="s" id="sLeftSub"></div></div>
+    <div class="stat"><div class="k">Total burned</div><div class="v" id="sTotalBurned">—</div><div class="s" id="sTotalBurnedSub">MEDICI</div></div>
     <div class="stat"><div class="k">Burned this week</div><div class="v" id="sBurned">—</div><div class="s" id="sBurnedSub">MEDICI</div></div>
     <div class="stat"><div class="k">Treasury</div><div class="v" id="sTreasury">—</div><div class="s" id="sTreasurySub">ETH</div></div>
     <div class="stat"><div class="k">Your MEDICI</div><div class="v" id="sBal">—</div><div class="s" id="sBalSub">connect to vote</div></div>
@@ -407,7 +409,7 @@ const demo = (() => {
   return {
     epoch: 4n, end: BigInt(t + 2 * 86400 + 5 * 3600), proposeDeadline: BigInt(t + 2 * 86400 + 5 * 3600), cost: 146_918n * E,  // 84,000 x 1.15^4: the 5th idea this week
     price: 23_809_523_809n,  // ETH per MEDICI (0.002 ETH / 84,000), a ~24 ETH market cap
-    treasury: 210_000_000_000_000_000n, treasuryImd: 2_500_000_000_000_000_000n, buybackBurned: 2_400_000n * E, buybackReady: true,
+    treasury: 210_000_000_000_000_000n, treasuryImd: 2_500_000_000_000_000_000n, totalBurned: 24_300_000n * E, buybackBurned: 2_400_000n * E, buybackReady: true,
     chunk: { eth: 3_500_000_000_000_000n, tip: 17_500_000_000_000n }, balance: 2_500_000n * E, allowance: 0n,
     proposals: [
       mk("0x51f2c3a1b2d4e5f60718293a4b5c6d7e8f901234", "Chess token: every buy is a move",
@@ -511,7 +513,7 @@ async function load() {
   if (DEMO) {
     const d = demo;
     state = { epoch: d.epoch, end: Number(d.end), proposeDeadline: Number(d.proposeDeadline), cost: d.cost, price: d.price, treasury: d.treasury, treasuryImd: d.treasuryImd,
-      buybackBurned: d.buybackBurned, buybackReady: d.buybackReady, chunk: d.chunk,
+      totalBurned: d.totalBurned, buybackBurned: d.buybackBurned, buybackReady: d.buybackReady, chunk: d.chunk,
       proposals: d.proposals.map((p, i) => ({ id: BigInt(i + 1), ...p, mine: account ? p.mine : 0n })),  // ids start at 1, as on-chain
       past: d.past.map((p) => ({ ...p, claimable: account ? p.claimable : 0n, ended: true })),
       balance: account ? d.balance : null, allowance: account ? d.allowance : 0n };
@@ -522,10 +524,10 @@ async function load() {
   const head = await rpc((p) => p.getBlock("latest"));
   if (head) clockSkew = Number(head.timestamp) - Math.floor(Date.now() / 1000);
   const epoch = await tCall("currentEpoch");
-  const [end, pd, cost, price, count, treasury, treasuryImd, bb, chunk] = await Promise.all([
+  const [end, pd, cost, price, count, treasury, treasuryImd, bb, chunk, burnedAll] = await Promise.all([
     tCall("epochEnd", epoch), tCall("proposeDeadline", epoch), tCall("proposeCost"), tCall("price").catch(() => 0n), tCall("proposalCount", epoch),
     rpc((p) => p.getBalance(TREASURY)), rpc((p) => new ethers.Contract(IMD, ERC20_ABI, p).balanceOf(TREASURY)),
-    tCall("totalBuybackBurned"), tCall("buybackChunk")]);
+    tCall("totalBuybackBurned"), tCall("buybackChunk"), tCall("totalBurned")]);
   const proposals = await Promise.all([...Array(Number(count)).keys()].map((i) => i + 1).map(async (i) => {  // ids start at 1
     const p = await tCall("proposalOf", epoch, i);
     const [brief, mine] = await Promise.all([briefFromChain(p).catch(() => null), account ? tCall("votesOf", epoch, i, account) : 0n]);
@@ -539,7 +541,7 @@ async function load() {
   if (account) [balance, allowance] = await Promise.all([
     rpc((p) => new ethers.Contract(tokenAddr, ERC20_ABI, p).balanceOf(account)),
     rpc((p) => new ethers.Contract(tokenAddr, ERC20_ABI, p).allowance(account, TREASURY))]);
-  state = { epoch, end: Number(end), proposeDeadline: Number(pd), cost, price, treasury, treasuryImd, buybackBurned: bb, buybackReady: chunk.eth > 0n,
+  state = { epoch, end: Number(end), proposeDeadline: Number(pd), cost, price, treasury, treasuryImd, totalBurned: burnedAll, buybackBurned: bb, buybackReady: chunk.eth > 0n,
     chunk: { eth: chunk.eth, tip: chunk.tip }, proposals, past, balance, allowance };
 }
 
@@ -690,12 +692,17 @@ function render() {
   $("sEpochSub").textContent = `${s.proposals.length} of 20 proposals`;
   $("sBurned").textContent = fmt(total);
   $("sBurnedSub").textContent = "MEDICI " + ethHint(total);
+  // every burn the treasury counts: proposals, votes, buybacks, and the MEDICI side of trading fees
+  const supply = HOOK_SUPPLY * 10n ** 18n;
+  $("sTotalBurned").textContent = fmt(s.totalBurned ?? 0n);
+  $("sTotalBurnedSub").textContent = `MEDICI · ${(Number((s.totalBurned ?? 0n) * 1_000_000n / supply) / 10_000).toLocaleString(undefined, { maximumFractionDigits: 4 })}% of supply`;
   $("sTreasury").textContent = fmtEth(s.treasury);
   const fundable = s.treasuryImd != null ? Number(s.treasuryImd / LAUNCH_PRICE) : null;
   $("sTreasurySub").textContent = `ETH · ${s.treasuryImd != null ? fmt(s.treasuryImd, 2) + " IMD (funds " + fundable + " launch" + (fundable === 1 ? "" : "es") + "; it buys more with ETH when short) · " : ""}${fmt(s.buybackBurned)} MEDICI bought back and burned`;
   $("sBal").textContent = s.balance == null ? "—" : fmt(s.balance);
   $("sBalSub").textContent = account ? (ethHint(s.balance || 0n) || "available to burn") : "connect to vote";
   if (s.price) $("chartLink").href = `https://dexscreener.com/ethereum/${tokenAddr}`;
+  if (!DEMO && tokenAddr) { $("tokenLink").href = `${EXPLORER}/token/${tokenAddr}`; $("tokenLinkWrap").hidden = false; }
 
   // voting allowance: fewer wallet pop-ups for people who vote often
   const ab = $("allowanceBox");
