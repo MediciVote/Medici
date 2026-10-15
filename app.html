@@ -851,13 +851,7 @@ $("buyBtn").onclick = () => {
     if (!confirm(`Buy about ${fmt(out)} MEDICI for ${fmtEth(amountIn, 6)} ETH?\n\nYou get at least ${fmt(min)} MEDICI, or the swap cancels itself.`)) throw Object.assign(new Error("cancelled"), { code: 4001 });
     if (DEMO) { say("Demo: buying… (nothing is sent)"); await pause(800); demo.balance += out; $("buyEth").value = ""; refreshQuote(); return; }
     const data = buyCalldata(k, amountIn, min, BigInt(now() + 1200));
-    const signer = await wallet.getSigner();
-    await signer.call({ to: ROUTER, data, value: amountIn });  // dry run first
-    say("Buy MEDICI: confirm it in your wallet.");
-    const tx = await signer.sendTransaction({ to: ROUTER, data, value: amountIn });
-    say("Waiting for confirmation…", "", tx.hash);
-    const r = await tx.wait();
-    if (r.status !== 1) throw new Error("the swap failed on-chain");
+    const tx = await sendTx(ROUTER, data, amountIn, "Buy MEDICI");
     lastTx = tx.hash;
     $("buyEth").value = ""; refreshQuote();
   }, "Bought MEDICI.");
@@ -1023,30 +1017,71 @@ function parseAmount(v) {
 
 // Burns pull MEDICI with transferFrom, so the treasury needs an allowance. By default it's exactly
 // the amount being burned; a voting allowance the visitor approved covers several votes.
+const TREASURY_IFACE = new ethers.Interface(TREASURY_ABI);
+const ERC20_IFACE = new ethers.Interface(ERC20_ABI);
+// Readable reasons for the errors the treasury, the hook, the pool and the router can raise
+const ERROR_IFACE = new ethers.Interface([
+  "error Unauthorized()", "error InvalidInput()", "error WrongState()", "error TooEarly()", "error InsufficientFreeETH()",
+  "error Slippage()", "error UnknownRequest()", "error TransferFailed()", "error AmbiguousLaunch()", "error InvalidPool()",
+  "error NotOpen()", "error InvalidQuote()", "error AmountTooLarge()", "error V4TooLittleReceived(uint256 minAmountOutReceived, uint256 amountReceived)",
+  "error DeadlinePassed(uint256 deadline)", "error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)",
+  "error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed)",
+]);
+const ERROR_TEXT = {
+  WrongState: "that isn't possible at this stage of the week", InvalidInput: "the contract refused the input", TooEarly: "it's too early for that",
+  InsufficientFreeETH: "the treasury doesn't have enough free ETH", Slippage: "the price moved too much", V4TooLittleReceived: "the price moved past your slippage limit",
+  ERC20InsufficientBalance: "this wallet doesn't hold enough MEDICI", ERC20InsufficientAllowance: "the MEDICI approval is too small",
+  InvalidQuote: "the pool's fee check failed; try a slightly different amount", DeadlinePassed: "the request expired; try again",
+};
+function reason(err) {
+  const data = err?.data || err?.info?.error?.data || err?.error?.data;
+  if (typeof data === "string" && data.length >= 10) {
+    try { const e = ERROR_IFACE.parseError(data); return ERROR_TEXT[e.name] || e.name; } catch { /* unknown error */ }
+  }
+  if (/insufficient funds/i.test(err?.message || "")) return "this wallet doesn't have enough ETH for the amount plus gas";
+  return err?.shortMessage || err?.reason || err?.message || String(err);
+}
+// Fees like the keeper's: the median recent tip (0.05-2 gwei) and a max fee of twice the base fee plus that tip
+async function suggestedFees() {
+  const h = await rpc((p) => p.send("eth_feeHistory", ["0x14", "latest", [50]]));
+  const tips = h.reward.map((r) => BigInt(r[0])).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  let tip = tips[tips.length >> 1] ?? 100_000_000n;
+  tip = tip < 50_000_000n ? 50_000_000n : tip > 2_000_000_000n ? 2_000_000_000n : tip;
+  return { maxPriorityFeePerGas: tip, maxFeePerGas: 2n * BigInt(h.baseFeePerGas[h.baseFeePerGas.length - 1]) + tip };
+}
+async function sendTx(to, data, value, label, step = "") {
+  const tx0 = { from: account, to, data, value };
+  // nodes refuse a simulation that spends more than the wallet holds, without saying why, so check first
+  const balance = await rpc((p) => p.getBalance(account));
+  if (balance < value) throw new Error(`this wallet has ${fmtEth(balance, 5)} ETH, less than the ${fmtEth(value, 5)} ETH you're spending`);
+  try { await rpc((p) => p.call(tx0)); } catch (e) { throw new Error(`this would fail: ${reason(e)}`); }  // dry run: stops before the wallet asks
+  const gas = await rpc((p) => p.estimateGas(tx0));
+  const fees = await suggestedFees();
+  const need = value + gas * fees.maxFeePerGas;
+  if (balance < need) throw new Error(`this wallet has ${fmtEth(balance, 5)} ETH; this needs up to ${fmtEth(need, 5)} ETH including gas`);
+  say(`${step}${label}: confirm it in your wallet.`);
+  const tx = await (await wallet.getSigner()).sendTransaction({ to, data, value, gasLimit: gas * 6n / 5n, ...fees });
+  say(`${step}Waiting for confirmation…`, "", tx.hash);
+  const r = await tx.wait();
+  if (r.status !== 1) throw new Error("the transaction failed on-chain");
+  return tx;
+}
+
 async function ensureAllowance(amount, label) {
   if (DEMO) {
     if (demo.allowance >= amount) { demo.allowance -= amount; return false; }
     say(`Step 1 of 2: approve exactly ${fmt(amount)} MEDICI. (Demo: nothing is sent.)`); await pause(600); return true;
   }
-  const signer = await wallet.getSigner();
-  const tok = new ethers.Contract(tokenAddr, ERC20_ABI, signer);
-  if ((await tok.allowance(account, TREASURY)) >= amount) return false;
-  say(`Step 1 of 2: let the treasury burn exactly ${fmt(amount)} MEDICI for ${label}. Confirm it in your wallet.`);
-  const tx = await tok.approve(TREASURY, amount);
-  say("Step 1 of 2: waiting for the approval to confirm…", "", tx.hash);
-  await tx.wait();
+  const allowance = await rpc((p) => new ethers.Contract(tokenAddr, ERC20_ABI, p).allowance(account, TREASURY));
+  if (allowance >= amount) return false;
+  await sendTx(tokenAddr, ERC20_IFACE.encodeFunctionData("approve", [TREASURY, amount]), 0n,
+    `let the treasury burn exactly ${fmt(amount)} MEDICI for ${label}`, "Step 1 of 2: ");
   return true;
 }
 
 async function send(fn, args, label, step = "") {
   if (DEMO) { say(`${step}Demo: ${label}… (nothing is sent)`); await pause(800); return; }
-  const c = new ethers.Contract(TREASURY, TREASURY_ABI, await wallet.getSigner());
-  await c[fn].staticCall(...args);  // dry run: a revert stops here, before the wallet asks
-  say(`${step}${label}: confirm it in your wallet.`);
-  const tx = await c[fn](...args);
-  say(`${step}Waiting for confirmation…`, "", tx.hash);
-  const r = await tx.wait();
-  if (r.status !== 1) throw new Error("the transaction failed on-chain");
+  const tx = await sendTx(TREASURY, TREASURY_IFACE.encodeFunctionData(fn, args), 0n, label, step);
   lastTx = tx.hash;
 }
 
@@ -1057,7 +1092,7 @@ async function run(work, done) {
   busy = true; lastTx = null; render();
   let result;
   try { await work(); result = [done, "ok", lastTx]; }
-  catch (err) { result = [declined(err) ? "Cancelled." : "Stopped: " + (err.shortMessage || err.reason || err.message || err), "bad", null]; }
+  catch (err) { result = [declined(err) ? "Cancelled." : "Stopped: " + reason(err), "bad", null]; }
   try { await Promise.all([load(), loadFees()]); } catch { /* the next refresh reports it */ }
   busy = false; render(); say(...result);
 }
@@ -1083,11 +1118,7 @@ function doAllowance(raw) {
   if (!confirm(`Let the Medici treasury burn up to ${fmt(amount)} MEDICI from this wallet for your votes and proposals?\n\nIt can only burn when you vote or propose, and you can lower it any time by approving a smaller amount.`)) return;
   run(async () => {
     if (DEMO) { say("Demo: approving… (nothing is sent)"); await pause(700); demo.allowance = amount; const box = document.querySelector('[data-key="allowance"]'); if (box) box.value = ""; return; }
-    const tok = new ethers.Contract(tokenAddr, ERC20_ABI, await wallet.getSigner());
-    say("Approve the voting allowance: confirm it in your wallet.");
-    const tx = await tok.approve(TREASURY, amount);
-    say("Waiting for confirmation…", "", tx.hash);
-    await tx.wait();
+    const tx = await sendTx(tokenAddr, ERC20_IFACE.encodeFunctionData("approve", [TREASURY, amount]), 0n, "Approve the voting allowance");
     lastTx = tx.hash;
     const box = document.querySelector('[data-key="allowance"]'); if (box) box.value = "";
   }, `Voting allowance set to ${fmt(amount)} MEDICI.`);
