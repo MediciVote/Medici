@@ -125,7 +125,7 @@
     <div class="stat"><div class="k">Voting ends in</div><div class="v" id="sLeft">—</div><div class="s" id="sLeftSub"></div></div>
     <div class="stat"><div class="k">Total burned</div><div class="v" id="sTotalBurned">—</div><div class="s" id="sTotalBurnedSub">MEDICI</div></div>
     <div class="stat"><div class="k">Burned this week</div><div class="v" id="sBurned">—</div><div class="s" id="sBurnedSub">MEDICI</div></div>
-    <div class="stat"><div class="k">Treasury</div><div class="v" id="sTreasury">—</div><div class="s" id="sTreasurySub">ETH</div></div>
+    <div class="stat"><div class="k">Treasury</div><div class="v" id="sTreasury">—</div><div class="s" id="sTreasurySub"></div></div>
     <div class="stat"><div class="k">Your MEDICI</div><div class="v" id="sBal">—</div><div class="s" id="sBalSub">connect to vote</div></div>
   </section>
 
@@ -139,7 +139,8 @@
       <button id="buyBtn">Buy MEDICI</button>
     </div>
     <p class="dim" id="buyQuote" style="margin:8px 0 0;font-size:13.5px">Enter an amount to see a live quote from the Medici pool.</p>
-    <p class="dim" style="margin:6px 0 0;font-size:13px">Swaps straight through Medici's own Uniswap pool. Every trade pays the pool's 1.25% fee and Medici's 2% fee (1.5% to the treasury). In the first 15 minutes after launch the buy fee starts at 50% and falls to 2%, against sniping bots; the quote above always includes it. <a id="chartLink" target="_blank" rel="noopener noreferrer">Price chart ↗</a></p>
+    <p class="dim" style="margin:6px 0 0;font-size:13px">Swaps straight through Medici's own Uniswap pool. Every trade pays the pool's 1.25% fee and Medici's 2% fee (1.5% to the treasury). In the first 15 minutes after launch the buy fee starts at 50% and falls to 2%, against sniping bots; the quote above always includes it.</p>
+    <p style="margin:8px 0 0;font-size:13.5px">Prefer another app? <a id="chartLink" target="_blank" rel="noopener noreferrer">See MEDICI on DexScreener ↗</a> for the price chart and links to trade it in other wallets and apps. Check the token address matches the <a id="tokenLink2" target="_blank" rel="noopener noreferrer">official contract</a>: copycat tokens use the same name.</p>
   </div>
 
   <h2>This week's proposals</h2>
@@ -696,12 +697,14 @@ function render() {
   const supply = HOOK_SUPPLY * 10n ** 18n;
   $("sTotalBurned").textContent = fmt(s.totalBurned ?? 0n);
   $("sTotalBurnedSub").textContent = `MEDICI · ${(Number((s.totalBurned ?? 0n) * 1_000_000n / supply) / 10_000).toLocaleString(undefined, { maximumFractionDigits: 4 })}% of supply`;
-  $("sTreasury").textContent = fmtEth(s.treasury);
+  $("sTreasury").textContent = fmtEth(s.treasury) + " ETH";
   const fundable = s.treasuryImd != null ? Number(s.treasuryImd / LAUNCH_PRICE) : null;
-  $("sTreasurySub").textContent = `ETH · ${s.treasuryImd != null ? fmt(s.treasuryImd, 2) + " IMD (funds " + fundable + " launch" + (fundable === 1 ? "" : "es") + "; it buys more with ETH when short) · " : ""}${fmt(s.buybackBurned)} MEDICI bought back and burned`;
+  $("sTreasurySub").textContent = (s.treasuryImd != null ? `+ ${fmt(s.treasuryImd, 2)} IMD, enough for ${fundable} launch${fundable === 1 ? "" : "es"} · ` : "")
+    + `${fmt(s.buybackBurned)} MEDICI bought back and burned`;
   $("sBal").textContent = s.balance == null ? "—" : fmt(s.balance);
   $("sBalSub").textContent = account ? (ethHint(s.balance || 0n) || "available to burn") : "connect to vote";
-  if (s.price) $("chartLink").href = `https://dexscreener.com/ethereum/${tokenAddr}`;
+  if (tokenAddr) $("chartLink").href = `https://dexscreener.com/ethereum/${tokenAddr}`;
+  if (tokenAddr) $("tokenLink2").href = `${EXPLORER}/token/${tokenAddr}`;
   if (!DEMO && tokenAddr) { $("tokenLink").href = `${EXPLORER}/token/${tokenAddr}`; $("tokenLinkWrap").hidden = false; }
 
   // voting allowance: fewer wallet pop-ups for people who vote often
