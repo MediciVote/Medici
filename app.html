@@ -97,7 +97,7 @@
   <header>
     <div>
       <h1><span>Medici</span> weekly vote</h1>
-      <p class="sub">Burn MEDICI to choose what the IMD swarm builds next, and back the winner.</p>
+      <p class="sub">Vote with MEDICI on what the IMD swarm builds next. Every vote is burned.</p>
       <p class="sub" style="margin-top:4px">Official: <a href="https://x.com/Medici_IMD" target="_blank" rel="noopener noreferrer">@Medici_IMD on X ↗</a><span id="tokenLinkWrap" hidden> · <a id="tokenLink" target="_blank" rel="noopener noreferrer">MEDICI token contract ↗</a></span></p>
     </div>
     <div class="row">
@@ -112,9 +112,15 @@
   <details id="intro" class="note" open>
     <summary style="cursor:pointer"><b>New here? How Medici works in 3 steps</b></summary>
     <ol>
-      <li><b>Get MEDICI</b> with ETH, right on this page (below).</li>
-      <li><b>Burn it for the idea you want built.</b> Each week the idea with the most MEDICI burned is built and launched by the IMD swarm, and its trading fees flow back to the Medici treasury for good.</li>
-      <li><b>If your idea wins, claim your backer tokens.</b> Every winning launch sets aside 5% of its tokens for the people who burned for it, split by how much each burned.</li>
+      <li><b>Get MEDICI</b> with ETH, right on this page or in any trading app (see Get MEDICI below).</li>
+      <li><b>Propose or vote for the idea you want built.</b> Each week, the idea with the most votes is built and launched by the IMD swarm as a new token. One MEDICI burned is one vote. Proposing and voting both burn MEDICI, permanently lowering its total supply, and burns aren't refunded if an idea loses.</li>
+      <li><b>Share in the winner.</b>
+        <ul>
+          <li><b>Proposed the winning idea?</b> You're paid an ETH bounty from the treasury when it launches, and your proposal burn counts as a vote for the backer share below.</li>
+          <li><b>Voted for it?</b> You and the other backers split 5% of the new token's supply, in proportion to what each burned. Claim it on this page within 90 days.</li>
+          <li><b>Holding MEDICI?</b> The treasury owns the fee share of every token Medici launches, so it earns 1% of all their trading, forever, on top of 1.5% of every MEDICI trade. It spends that money on future launches, proposer bounties, and buying back and burning MEDICI.</li>
+        </ul>
+      </li>
     </ol>
   </details>
 
@@ -139,12 +145,13 @@
       <button id="buyBtn">Buy MEDICI</button>
     </div>
     <p class="dim" id="buyQuote" style="margin:8px 0 0;font-size:13.5px">Enter an amount to see a live quote from the Medici pool.</p>
-    <p class="dim" style="margin:6px 0 0;font-size:13px">Swaps straight through Medici's own Uniswap pool. Every trade pays the pool's 1.25% fee and Medici's 2% fee (1.5% to the treasury). In the first 15 minutes after launch the buy fee starts at 50% and falls to 2%, against sniping bots; the quote above always includes it.</p>
+    <p class="dim" style="margin:6px 0 0;font-size:13px">Swaps straight through Medici's own Uniswap pool. Every trade pays the pool's 1.25% fee and Medici's 2% fee (1.5% of it goes to the treasury); the quote above includes both.</p>
     <p style="margin:8px 0 0;font-size:13.5px">Prefer another app? <a id="chartLink" target="_blank" rel="noopener noreferrer">See MEDICI on DexScreener ↗</a> for the price chart and links to trade it in other wallets and apps. Check the token address matches the <a id="tokenLink2" target="_blank" rel="noopener noreferrer">official contract</a>: copycat tokens use the same name.</p>
   </div>
 
   <h2>This week's proposals</h2>
-  <p class="dim" style="margin:-4px 0 10px;font-size:14px">Voting is a bet: if the idea you burn for wins, you get a share of its <b>5% backer allocation</b>, in proportion to what you burned.</p>
+  <p class="dim" style="margin:-4px 0 6px;font-size:14px">Burn MEDICI for the idea you want built. If it wins, you get a share of its <b>5% backer allocation</b>, in proportion to what you burned. Burns for ideas that don't win aren't refunded.</p>
+  <p id="weekInfo" style="margin:0 0 10px;font-size:14px"></p>
   <div id="allowanceBox" class="note" style="display:none"></div>
   <div id="props"></div>
 
@@ -183,7 +190,7 @@
     </div>
     <label for="bObjective"><b>What should the swarm build?</b> <span class="count" id="bCount">0 / 5,000</span></label>
     <textarea id="bObjective" rows="9" placeholder="Describe the mechanic in plain words, then the exact rules: e.g. 'Every buy over 0.01 ETH makes the buyer the leader and resets a 10-minute timer. When the timer runs out, the leader wins 5% of the prize pot, which is filled by a 2% fee on every trade, taken in ETH. Nobody can change the rules after launch.'"></textarea>
-    <p class="dim" style="font-size:13px;margin:6px 0 0"><b>Want to earn from your idea?</b> The launch's own trading fees go to the Medici treasury, but your brief can pay you through its mechanics, e.g. "0.5% of every trade, taken in ETH, goes to 0x…your wallet". Keep it modest: voters see it before they burn.</p>
+    <p class="dim" style="font-size:13px;margin:6px 0 0"><b>Want ongoing income from your idea?</b> If it wins you get the bounty and a backer share, but the new token's standard trading fees go to the Medici treasury. Your brief can pay you through its own mechanics instead, e.g. "0.5% of every trade, taken in ETH, goes to 0x…your wallet". Keep it modest: voters read it before they burn.</p>
     <details style="margin-top:10px"><summary class="dim" style="cursor:pointer">Advanced: the exact request sent to IMD</summary>
       <textarea id="bJson" rows="8" spellcheck="false" aria-label="The exact JSON request sent to IMD" style="margin-top:6px;font:12.5px/1.45 ui-monospace,Consolas,monospace"></textarea>
       <p class="dim" style="font-size:13px;margin:6px 0 0">Built from the fields above. Edit it here for fields the form doesn't cover (see IMD's guide); editing the fields above rebuilds it.</p>
@@ -215,15 +222,15 @@
     </ul>
     <p style="margin:10px 0 0"><b>How the team is paid:</b> fees only, set in the contracts and visible on-chain.</p>
     <ul style="margin:0;padding-left:20px">
-      <li>0.5% of each trade, from the 2% MEDICI fee, taken in ETH. The other 1.5% goes to the treasury. The treasury's own buybacks pay no MEDICI fee.</li>
-      <li>The launch requester's 1% share of the pool's standard 1.25% fee, as on every IMD launch, through a fee router contract. The ETH part, paid on buys, goes to the team. The MEDICI part, paid on sells, is burned automatically, so the team never holds MEDICI from fees. Treasury buybacks pay this pool fee too, like every trade.</li>
-      <li>An automated keeper checks proposals, sends winners to IMD first and records each launch. It holds no IMD, never pays IMD, and can draw at most 0.01 ETH a week from the treasury for gas, nothing more.</li>
+      <li><b>0.5% of every MEDICI trade,</b> paid in ETH: part of Medici's 2% fee. The other 1.5% goes to the treasury. The treasury's own buybacks don't pay this fee.</li>
+      <li><b>IMD's standard launch fee share:</b> 1% of every MEDICI trade, as on every IMD launch. The ETH half goes to the team; the MEDICI half is burned automatically by a fee router contract, so the team never collects MEDICI. The handover to that router is permanent.</li>
+      <li><b>No other income.</b> An automated keeper runs the weekly chores (checking proposals, settling weeks, sending winners to IMD). It holds no IMD and can take at most 0.01 ETH a week from the treasury, for gas only.</li>
     </ul>
   </div>
 
   <h2>How it works</h2>
   <ul class="how">
-    <li><b>Propose:</b> fill in the form above. Proposing burns MEDICI worth 0.002 ETH for the week's first idea, about what requesting an IMD launch yourself costs, rising 15% with each idea after it so nobody can cheaply fill all 20 slots. It's priced from the 24-hour average, so it stays affordable as MEDICI rises, and the burn counts as your first vote. The brief is stored on-chain with your proposal, so it can't be changed later. Up to 20 ideas per week, during the first 7 days.</li>
+    <li><b>Propose:</b> fill in the form above. The week's first idea burns MEDICI worth 0.002 ETH (about what launching on IMD yourself costs), and each idea after it costs 15% more, so nobody can cheaply fill all 20 slots. The price uses MEDICI's 24-hour average, and the burn counts as your first vote. Your brief is stored on-chain with the proposal, so it can't be changed later. Up to 20 ideas a week, during the week's first 7 days.</li>
     <li><b>Rules for briefs:</b>
       <ul>
         <li>Ethereum only, traded against ETH or IMD.</li>
@@ -232,14 +239,15 @@
         <li>A project's owner role goes to the burn address.</li>
       </ul>
     </li>
-    <li><b>Vote:</b> burn any amount of MEDICI for an idea. One burned token is one vote; votes can't be moved or refunded.</li>
-    <li><b>Last hour:</b> a vote in the final hour pushes the end to 10 minutes after it, for at most 24 extra hours.</li>
-    <li><b>Settle:</b> after the end, anyone can settle. The idea with the most burned wins, and the runner-up is kept as a backup. If the winner drew less than about 0.01 ETH of burns, nothing is built that week.</li>
-    <li><b>Launch:</b> the treasury itself sends the winning brief to IMD's on-chain intake, byte for byte as voted, and pays IMD's 0.5 IMD fee from its own IMD, buying more with its ETH when it runs short. The launch's trading fees go to the treasury for good. An automated keeper runs IMD's free check on every proposal (shown on its card) and gets the first 24 hours to send the winner; after that anyone can, from the Help run Medici section. If IMD refuses the brief, the runner-up takes its place automatically.</li>
-    <li><b>Backers:</b> once the winner launches, its voters (the proposer included) claim its 5% backer share in proportion to what they burned, within 90 days. Unclaimed tokens are then burned.</li>
-    <li><b>Paying yourself:</b> a brief can pay its proposer through its own mechanics, for example a small fee on every trade, in ETH, to the proposer's wallet. That's the proposer's ongoing income, like the fees a self-launched project earns. Voters read it before they burn, so a modest cut wins more votes than a greedy one.</li>
-    <li><b>Bounty:</b> the proposer is paid when the launch goes live. The bounty is the smallest of 10% of the treasury, 1 ETH, and half the value burned for the winning idea. It grows with the treasury, so expect it to be small in Medici's first weeks. If nothing launches within 14 days, or the winner is skipped, the runner-up gets the slot, judged on its own burns.</li>
-    <li><b>Buyback:</b> 40% of each week's treasury income is unlocked over the next day to buy MEDICI and burn it. Unspent ETH carries over, so small amounts are bought in one go once it's worth the gas.</li>
+    <li><b>Vote:</b> burn any amount of MEDICI for an idea. One burned MEDICI is one vote. Votes can't be moved or refunded.</li>
+    <li><b>Last hour:</b> a vote in the final hour pushes the end back to 10 minutes after it, by at most 24 hours in total.</li>
+    <li><b>The winner:</b> when the week ends, the idea with the most burned wins and the runner-up is kept as a backup. To launch, the winner needs burns worth at least 0.01 ETH at the week's average MEDICI price (shown live above the proposals). Below that, nothing is built that week.</li>
+    <li><b>Launch:</b> the treasury sends the winning brief to IMD exactly as voted and pays IMD's 0.5 IMD fee itself. The IMD swarm then builds, tests, audits and deploys it as a new token with its own trading pool, usually within a few hours. Every proposal gets IMD's free check first (shown on its card); if IMD still refuses the winner, the runner-up takes its place automatically.</li>
+    <li><b>Rewards for the winner's backers:</b> 5% of the new token's supply, split in proportion to what each burned for it (the proposer's burn included). Claim it under Past weeks within 90 days; what nobody claims is burned.</li>
+    <li><b>Reward for the proposer:</b> an ETH bounty, paid when the launch goes live. It's the smallest of 10% of the treasury's free ETH, 1 ETH, and half the value burned for the idea, so it grows as the treasury does. A brief can also pay its proposer through its own mechanics, e.g. a small fee on every trade; voters read it before they burn.</li>
+    <li><b>Where the treasury's money comes from:</b> 1.5% of every MEDICI trade, plus the fee share of every token Medici launches. The treasury is each launch's fee owner on IMD, so it earns 1% of all that token's trading, forever.</li>
+    <li><b>Where it goes:</b> IMD's fee for each launch, the proposer bounties, and buybacks: 40% of each week's income buys MEDICI over the following day and burns it.</li>
+    <li><b>If a winner doesn't launch</b> within 14 days, or is skipped because IMD refuses it, the runner-up gets the slot, judged on its own burns.</li>
   </ul>
 </main>
 
@@ -266,6 +274,7 @@ const LAUNCH_PRICE = 500_000_000_000_000_000n;  // IMD's intake charges 0.5 IMD 
 
 const TREASURY_ABI = [
   "function token() view returns (address)",
+  "function hook() view returns (address)",
   "function price() view returns (uint256)",
   "function totalBurned() view returns (uint256)",
   "function currentEpoch() view returns (uint256)",
@@ -450,7 +459,23 @@ async function rpc(fn) {
   throw err;
 }
 const tCall = (fn, ...args) => rpc((p) => new ethers.Contract(TREASURY, TREASURY_ABI, p)[fn](...args));
-let tokenAddr = null;
+let tokenAddr = null, hookAddr = null;
+const HOOK_ABI = ["function openedAt() view returns (uint64)", "function twap(uint64,uint64) view returns (uint256)"];
+const QUORUM_WEI = 10n ** 16n;  // a winner needs burns worth 0.01 ETH at the week's average price
+// MEDICI a winner needs burned on it at the end of the week, if today's price holds until then
+async function launchNeed(epoch, end) {
+  const hook = (p) => new ethers.Contract(hookAddr, HOOK_ABI, p);
+  const t = BigInt(now()) - 1n;
+  const start = epoch === 1n ? await rpc((p) => hook(p).openedAt()) : await tCall("epochEnd", epoch - 1n);
+  if (t <= start + 60n) return null;
+  const avg = await rpc((p) => hook(p).twap(start, t));
+  if (!avg) return null;
+  let spot = await rpc((p) => hook(p).twap(t - 60n, t)).catch(() => avg);
+  if (spot * 1000n < avg) spot = avg;  // a pool emptied of ETH reads ~0; don't project that forward
+  const endT = BigInt(end);
+  const avgEnd = endT > t ? (avg * (t - start) + spot * (endT - t)) / (endT - start) : avg;
+  return avgEnd > 0n ? QUORUM_WEI * 10n ** 18n / avgEnd : null;
+}
 const briefCache = new Map();  // briefHash -> brief text, only once found
 
 // A node that has pruned old logs can answer with an empty list rather than an error, so every
@@ -513,7 +538,7 @@ async function loadWeek(e) {
 async function load() {
   if (DEMO) {
     const d = demo;
-    state = { epoch: d.epoch, end: Number(d.end), proposeDeadline: Number(d.proposeDeadline), cost: d.cost, price: d.price, treasury: d.treasury, treasuryImd: d.treasuryImd,
+    state = { epoch: d.epoch, end: Number(d.end), proposeDeadline: Number(d.proposeDeadline), cost: d.cost, price: d.price, need: QUORUM_WEI * 10n ** 18n / d.price, treasury: d.treasury, treasuryImd: d.treasuryImd,
       totalBurned: d.totalBurned, buybackBurned: d.buybackBurned, buybackReady: d.buybackReady, chunk: d.chunk,
       proposals: d.proposals.map((p, i) => ({ id: BigInt(i + 1), ...p, mine: account ? p.mine : 0n })),  // ids start at 1, as on-chain
       past: d.past.map((p) => ({ ...p, claimable: account ? p.claimable : 0n, ended: true })),
@@ -522,6 +547,7 @@ async function load() {
     return;
   }
   tokenAddr ??= await tCall("token");
+  hookAddr ??= await tCall("hook");
   const head = await rpc((p) => p.getBlock("latest"));
   if (head) clockSkew = Number(head.timestamp) - Math.floor(Date.now() / 1000);
   const epoch = await tCall("currentEpoch");
@@ -542,7 +568,8 @@ async function load() {
   if (account) [balance, allowance] = await Promise.all([
     rpc((p) => new ethers.Contract(tokenAddr, ERC20_ABI, p).balanceOf(account)),
     rpc((p) => new ethers.Contract(tokenAddr, ERC20_ABI, p).allowance(account, TREASURY))]);
-  state = { epoch, end: Number(end), proposeDeadline: Number(pd), cost, price, treasury, treasuryImd, totalBurned: burnedAll, buybackBurned: bb, buybackReady: chunk.eth > 0n,
+  const need = await launchNeed(epoch, end).catch(() => null);
+  state = { epoch, end: Number(end), proposeDeadline: Number(pd), cost, price, need, treasury, treasuryImd, totalBurned: burnedAll, buybackBurned: bb, buybackReady: chunk.eth > 0n,
     chunk: { eth: chunk.eth, tip: chunk.tip }, proposals, past, balance, allowance };
 }
 
@@ -627,6 +654,9 @@ function proposalCard(p, rank, total, ended) {
     return `${share.toFixed(2)}% of its backer share` + (bt ? ` (≈ ${fmt(bt * mine / (p.burned || 1n))} tokens)` : "");
   };
   const mineLine = p.mine > 0n ? el("div", { class: "meta", text: `You burned ${fmt(p.mine)} for this · if it wins you'd get ${shareText(p.mine)}` }) : null;
+  const needLine = s.need && !ended ? el("div", { class: "meta", text: p.burned >= s.need
+    ? "✓ has enough burned to launch if it wins"
+    : `${Math.floor(Number(p.burned * 100n / s.need))}% of the ~${fmt(s.need)} MEDICI needed to launch` }) : null;
 
   const amt = el("input", { type: "text", inputMode: "decimal", placeholder: "MEDICI to burn", "data-key": "vote-" + key, "aria-label": `MEDICI to burn for ${p.title}` });
   const est = el("div", { class: "est" });
@@ -647,7 +677,7 @@ function proposalCard(p, rank, total, ended) {
   const card = el("div", { class: "card prop" },
     el("div", { class: "fill" }),
     el("div", { class: "top" }, title, el("div", { class: "burn" }, `${fmt(p.burned)} · ${pct.toFixed(1)}%`, el("small", { text: ethHint(p.burned) }))),
-    el("div", { class: "meta", text: `proposed by ${short(p.proposer)}` }), chips, briefView, fixRow, mineLine,
+    el("div", { class: "meta", text: `proposed by ${short(p.proposer)}` }), needLine, chips, briefView, fixRow, mineLine,
     ended ? null : el("div", { class: "act" }, amt, max, btn), ended ? null : est);
   card.querySelector(".fill").style.width = pct + "%";
   return card;
@@ -691,6 +721,13 @@ function render() {
 
   $("sEpoch").textContent = "#" + s.epoch;
   $("sEpochSub").textContent = `${s.proposals.length} of 20 proposals`;
+  {  // the two numbers people ask for: what proposing costs now, and what a launch needs
+    const canPropose = now() < s.proposeDeadline && s.proposals.length < 20;
+    const box = $("weekInfo"); box.replaceChildren();
+    if (canPropose) box.append("Proposing now costs ", el("b", { text: `${fmt(s.cost)} MEDICI` }), `${ethHint(s.cost) ? " (" + ethHint(s.cost) + ")" : ""}. `);
+    if (s.need) box.append("To launch this week, the winning idea needs about ", el("b", { text: `${fmt(s.need)} MEDICI` }),
+      ` burned on it by ${new Date(s.end * 1000).toLocaleString()}; the exact amount moves with MEDICI's price.`);
+  }
   $("sBurned").textContent = fmt(total);
   $("sBurnedSub").textContent = "MEDICI " + ethHint(total);
   // every burn the treasury counts: proposals, votes, buybacks, and the MEDICI side of trading fees
